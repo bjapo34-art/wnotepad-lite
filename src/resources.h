@@ -30,3 +30,7 @@
 // Controles
 #define IDC_EDIT               1000
 #define IDC_STATUSBAR          1001
+
+// Diálogos
+#define IDD_IR_LINEA           601
+#define IDD_FUENTE             602

@@ -1,0 +1,24 @@
+notepad-win32/
+│
+├── src/
+│   ├── main.c              # Punto de entrada: WinMain, registro de clase, bucle de mensajes
+│   ├── window.c            # Creación de la ventana principal (HWND) y del EDIT child
+│   ├── menu.c              # Construcción del menú (Archivo, Edición, Formato, Ver, Ayuda)
+│   ├── dialogs.c           # Diálogos: "Acerca de", "Fuente", "Ir a la línea"
+│   ├── fileio.c            # Abrir/Guardar (GetOpenFileName/GetSaveFileName), lectura/escritura
+│   ├── undo_redo.c         # Soporte de deshacer/rehacer (EM_UNDO o pila propia)
+│   └── resources.h         # IDs simbólicos: IDM_ARCHIVO_ABRIR, IDC_EDIT, etc.
+│
+├── res/
+│   ├── app.manifest        # Manifest: activar temas visuales (ComCtl32 v6)
+│   ├── notepad.rc          # Script de recursos (.rc) que referencia todo lo de res/
+│   ├── notepad.ico         # Icono de la aplicación
+│   └── notepad.ico.mono    # (opcional) variante monocromática
+│
+├── build/                  # Artefactos generados (no versionar)
+│   ├── obj/                # .obj intermedios
+│   └── notepad.exe         # Ejecutable final
+│
+├── build.bat               # Script que invoca a rc.exe y cl.exe con las flags correctas
+├── README.md               # Cómo compilar, requisitos, capturas
+└── .gitignore              # build/, *.obj, *.exe, *.ilk, *.pdb
