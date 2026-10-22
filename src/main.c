@@ -22,6 +22,22 @@ static WNDPROC g_EditProcOriginal = NULL;
 
 static LRESULT CALLBACK EditSubclass(HWND, UINT, WPARAM, LPARAM);
 
+/* Mensajes del EDIT que pueden cambiar el desplazamiento vertical,
+   la línea del cursor o el número de líneas del documento. */
+static BOOL EsMensajeDeSincronizacion(UINT msg)
+{
+    switch (msg) {
+    case WM_KEYDOWN: case WM_KEYUP: case WM_CHAR:
+    case WM_LBUTTONDOWN: case WM_LBUTTONUP: case WM_LBUTTONDBLCLK:
+    case WM_MOUSEWHEEL: case WM_SETFOCUS: case WM_SETTEXT:
+    case WM_CUT: case WM_PASTE: case WM_CLEAR:
+    case EM_SETSEL: case EM_SCROLLCARET: case EM_REPLACESEL:
+    case EM_UNDO: case EM_EMPTYUNDOBUFFER:
+        return TRUE;
+    }
+    return FALSE;
+}
+
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                       LPWSTR lpCmdLine, int nCmdShow)
 {
@@ -43,6 +59,26 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     return (int)msg.wParam;
 }
 
+/* Mensajes del EDIT que pueden cambiar la posición del cursor
+   o el contenido del documento (necesarios para refrescar la barra
+   de estado). */
+static BOOL EsMensajeDeCaret(UINT msg)
+{
+    switch (msg) {
+    case WM_KEYDOWN: case WM_KEYUP: case WM_CHAR:
+    case WM_LBUTTONDOWN: case WM_LBUTTONUP: case WM_LBUTTONDBLCLK:
+    case WM_MOUSEMOVE:
+    case WM_SETTEXT: case WM_CUT: case WM_PASTE: case WM_CLEAR:
+    case EM_SETSEL: case EM_SCROLLCARET: case EM_REPLACESEL:
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/* ---------------------------------------------------------------
+   EditSubclass: mantiene sincronizados los números de línea y la
+   barra de estado con el editor
+   --------------------------------------------------------------- */
 static LRESULT CALLBACK EditSubclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
@@ -64,7 +100,19 @@ static LRESULT CALLBACK EditSubclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         break;
     }
-    return CallWindowProc(g_EditProcOriginal, hwnd, msg, wp, lp);
+    LRESULT res = CallWindowProc(g_EditProcOriginal, hwnd, msg, wp, lp);
+
+    /* Mantener el panel de números de línea sincronizado con el editor */
+    if (EsMensajeDeSincronizacion(msg))
+        LineasActualizar(hwnd);
+
+    /* Actualizar la barra de estado con la posición del cursor */
+    if (EsMensajeDeCaret(msg)) {
+        HWND hParent = GetParent(hwnd);
+        if (hParent) ActualizarBarraEstado(hParent);
+    }
+
+    return res;
 }
 
 void InstalarSubclaseEdit(HWND hEdit)
@@ -101,6 +149,13 @@ HWND CrearVentanaPrincipal(HINSTANCE hInst, int nCmdShow)
 
     SendMessage(hEdit, EM_SETUNDOLIMIT, 100, 0);
     InstalarSubclaseEdit(hEdit);
+
+    /* Panel de números de línea a la izquierda del editor */
+    CrearPanelNumeros(hwnd, hInst);
+    CrearBarraEstado(hwnd, hInst);
+    ReflowBarraEstado(hwnd);
+    LineasReflow(hwnd);
+    ActualizarBarraEstado(hwnd);
 
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);

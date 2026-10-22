@@ -23,6 +23,7 @@
 
 // Ver
 #define IDM_VER_BARRA_ESTADO   401
+#define IDM_VER_NUMEROS_LINEA  402
 
 // Ayuda
 #define IDM_AYUDA_ACERCA       501
@@ -30,7 +31,14 @@
 // Controles
 #define IDC_EDIT               1000
 #define IDC_STATUSBAR          1001
+#define IDC_NUMEROS_LINEA      1002
 
 // Diálogos
 #define IDD_IR_LINEA           601
 #define IDD_FUENTE             602
+
+// Controles del diálogo de fuente
+#define IDC_FUENTE_FAMILIA     1101
+#define IDC_FUENTE_TAMANO      1102
+#define IDC_FUENTE_ESTILO      1103
+#define IDC_FUENTE_MUESTRA     1104
