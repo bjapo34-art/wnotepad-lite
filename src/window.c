@@ -1,13 +1,6 @@
 #include <windows.h>
+#include "app.h"
 #include "resources.h"
-
-extern void OnSize(HWND hwnd);
-extern void ManejarComando(HWND hwnd, WPARAM wParam, HINSTANCE hInst);
-extern BOOL AlCerrarConfirmar(HWND hwnd);
-extern void LineasActualizar(HWND hEdit);
-extern void LineasReflow(HWND hwndPrincipal);
-extern void ActualizarBarraEstado(HWND hwnd);
-extern void ReflowBarraEstado(HWND hwnd);
 
 LRESULT CALLBACK WndProcPrincipal(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
@@ -25,7 +18,7 @@ LRESULT CALLBACK WndProcPrincipal(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_VSCROLL:
         /* La barra de desplazamiento del EDIT notifica a la ventana padre:
            hay que re-sincronizar los números de línea. */
-        LineasActualizar(GetDlgItem(hwnd, IDC_EDIT));
+        LineasActualizar(DocsEditActivo());
         ActualizarBarraEstado(hwnd);
         return 0;
     case WM_NOTIFY:
@@ -46,15 +39,19 @@ LRESULT CALLBACK WndProcPrincipal(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 void OnSize(HWND hwnd)
 {
-    /* Primero se coloca la barra de estado (define el alto del área de
-       edición) y después se reacomodan el panel y el editor. */
+    /* Primero se coloca la barra de pestañas y la barra de estado (que
+       definen el alto del área de edición) y después se reacomodan el
+       panel y el editor. */
+    PestanasReflow(hwnd);
     ReflowBarraEstado(hwnd);
     LineasReflow(hwnd);
 }
 
-// Placeholder: sin detección de cambios todavía
+/* ---------------------------------------------------------------
+   AlCerrarConfirmar: pregunta por los cambios sin guardar de cada
+   documento abierto antes de cerrar la aplicación
+   --------------------------------------------------------------- */
 BOOL AlCerrarConfirmar(HWND hwnd)
 {
-    (void)hwnd;
-    return TRUE;
+    return DocsCerrarTodos(hwnd, FALSE);
 }

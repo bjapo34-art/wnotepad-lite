@@ -48,13 +48,13 @@ static int g_anchoPanel     = 0; /* ancho en píxeles del panel          */
 static HFONT g_hFuentePanel = NULL;
 
 /* ---------------------------------------------------------------
-   ObtenerEditor: devuelve el EDIT principal que acompaña al panel
+   ObtenerEditor: devuelve el EDIT del documento activo, que es el
+   que acompaña al panel
    --------------------------------------------------------------- */
 static HWND ObtenerEditor(HWND hPanel)
 {
-    HWND hPadre = GetParent(hPanel);
-    if (!hPadre) return NULL;
-    return GetDlgItem(hPadre, IDC_EDIT);
+    UNREFERENCED_PARAMETER(hPanel);
+    return DocsEditActivo();
 }
 
 /* ---------------------------------------------------------------
@@ -63,7 +63,9 @@ static HWND ObtenerEditor(HWND hPanel)
    --------------------------------------------------------------- */
 int LineasAnchoRequerido(HWND hwndPrincipal)
 {
-    HWND hEdit = GetDlgItem(hwndPrincipal, IDC_EDIT);
+    UNREFERENCED_PARAMETER(hwndPrincipal);
+
+    HWND hEdit = DocsEditActivo();
     if (!hEdit) return 0;
 
     int total = (int)SendMessage(hEdit, EM_GETLINECOUNT, 0, 0);
@@ -89,7 +91,7 @@ int LineasAnchoRequerido(HWND hwndPrincipal)
 
 /* ---------------------------------------------------------------
    MargenClienteEdit: margen vertical entre el borde de la ventana del
-   EDIT y su área de cliente (el EDIT tiene WS_EX_CLIENTEDGE). El texto
+   EDIT y su área de cliente (el EDIT puede tener borde). El texto
    empieza dentro de esa área, así que los números deben usar el mismo
    margen para que las filas coincidan.
    --------------------------------------------------------------- */
@@ -153,38 +155,11 @@ static void PintarPanel(HWND hPanel)
     if (primera < 0) primera = 0;
     int lineasVisibles = rc.bottom / altoLinea + 2;
 
-#ifdef DEBUG_LOG
-    {
-        HANDLE hf = CreateFile(L"C:\\Users\\Beto\\AppData\\Local\\Temp\\opencode\\paint.log",
-                               FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
-        if (hf != INVALID_HANDLE_VALUE) {
-            char buf[512];
-            int n = wsprintfA(buf, "PAINT rc=%ldx%ld alto=%d total=%d primera=%d lineasVis=%d font=%p\n",
-                              (long)rc.right, (long)rc.bottom, altoLinea, total, primera, lineasVisibles, (void*)hFuente);
-            DWORD w; WriteFile(hf, buf, n, &w, NULL); CloseHandle(hf);
-        }
-    }
-#endif
-
     SetBkMode(hdc, TRANSPARENT);
 
     /* Margen del borde del EDIT: el texto del EDIT empieza dentro de su
        área de cliente, de modo que los números deben desplazarse igual */
     int margen = MargenClienteEdit(hEdit);
-
-#ifdef DEBUG_LOG
-    {
-        HANDLE hf = CreateFile(L"C:\\Users\\Beto\\AppData\\Local\\Temp\\opencode\\paint.log",
-                               FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
-        if (hf != INVALID_HANDLE_VALUE) {
-            char buf[512];
-            int n = wsprintfA(buf, "METRIC tmAscent=%ld tmDescent=%ld tmHeight=%ld extLead=%ld margen=%d\n",
-                              (long)tm.tmAscent, (long)tm.tmDescent, (long)tm.tmHeight,
-                              (long)tm.tmExternalLeading, margen);
-            DWORD w; WriteFile(hf, buf, n, &w, NULL); CloseHandle(hf);
-        }
-    }
-#endif
 
     for (int i = 0; i < lineasVisibles; i++) {
         int numero = primera + i + 1;
@@ -278,7 +253,7 @@ HWND CrearPanelNumeros(HWND hwndPadre, HINSTANCE hInst)
         0, 0, 0, 0, hwndPadre, (HMENU)(INT_PTR)IDC_NUMEROS_LINEA, hInst, NULL);
 
     if (hPanel) {
-        HWND hEdit = GetDlgItem(hwndPadre, IDC_EDIT);
+        HWND hEdit = DocsEditActivo();
         if (hEdit)
             SendMessage(hPanel, WM_SETFONT,
                         (WPARAM)SendMessage(hEdit, WM_GETFONT, 0, 0), TRUE);
@@ -294,28 +269,16 @@ void LineasReflow(HWND hwndPrincipal)
     RECT rc;
     GetClientRect(hwndPrincipal, &rc);
 
-    /* El alto disponible descuenta la barra de estado (si está visible) */
-    int alto = AltoAreaEdicion(hwndPrincipal);
-    if (alto <= 0) alto = rc.bottom;
-
     HWND hPanel = GetDlgItem(hwndPrincipal, IDC_NUMEROS_LINEA);
-    HWND hEdit  = GetDlgItem(hwndPrincipal, IDC_EDIT);
+    HWND hEdit  = DocsEditActivo();
     if (!hEdit) return;
 
-#ifdef DEBUG_LOG
-    {
-        HANDLE hf = CreateFile(L"C:\\Users\\Beto\\AppData\\Local\\Temp\\opencode\\paint.log",
-                               FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
-        if (hf != INVALID_HANDLE_VALUE) {
-            int total = (int)SendMessage(hEdit, EM_GETLINECOUNT, 0, 0);
-            int primera = (int)SendMessage(hEdit, EM_GETFIRSTVISIBLELINE, 0, 0);
-            char buf[512];
-            int n = wsprintfA(buf, "REFLOW total=%d primera=%d visible=%d\n",
-                              total, primera, IsWindowVisible(hPanel) ? 1 : 0);
-            DWORD w; WriteFile(hf, buf, n, &w, NULL); CloseHandle(hf);
-        }
-    }
-#endif
+    /* La barra de pestañas ocupa la franja superior del área de cliente */
+    int top = PestanasAlto(hwndPrincipal);
+
+    /* El alto disponible descuenta la barra de estado (si está visible) */
+    int alto = AltoAreaEdicion(hwndPrincipal) - top;
+    if (alto < 0) alto = 0;
 
     int ancho = 0;
     if (hPanel && IsWindowVisible(hPanel)) {
@@ -324,11 +287,13 @@ void LineasReflow(HWND hwndPrincipal)
         SendMessage(hPanel, WM_SETFONT,
                     (WPARAM)SendMessage(hEdit, WM_GETFONT, 0, 0), TRUE);
         UpdateWindow(hPanel);
-        MoveWindow(hPanel, 0, 0, ancho, alto, TRUE);
+        MoveWindow(hPanel, 0, top, ancho, alto, TRUE);
         InvalidateRect(hPanel, NULL, TRUE);
     }
 
-    MoveWindow(hEdit, ancho, 0, rc.right - ancho, alto, TRUE);
+    /* Todos los EDIT se colocan en la misma zona: sólo se ve el del
+       documento activo, pero los demás quedan listos para mostrarse */
+    DocsColocarEdit(hwndPrincipal, ancho, top, rc.right - ancho, alto);
 }
 
 /* ---------------------------------------------------------------

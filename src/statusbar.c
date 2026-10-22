@@ -245,7 +245,7 @@ void ReflowBarraEstado(HWND hwnd)
 void ActualizarBarraEstado(HWND hwnd)
 {
     HWND hStatus = GetDlgItem(hwnd, IDC_STATUSBAR);
-    HWND hEdit   = GetDlgItem(hwnd, IDC_EDIT);
+    HWND hEdit   = DocsEditActivo();
     if (!hStatus || !hEdit || !IsWindowVisible(hStatus)) return;
 
     /* Posición del cursor: EM_GETSEL devuelve el inicio de la selección

@@ -11,6 +11,9 @@ HMENU ConstruirMenuPrincipal(void)
     AppendMenu(hArchivo, MF_STRING, IDM_ARCHIVO_GUARDAR, L"&Guardar\tCtrl+S");
     AppendMenu(hArchivo, MF_STRING, IDM_ARCHIVO_GUARDAR_COMO, L"Guardar &como...\tCtrl+Mayús+S");
     AppendMenu(hArchivo, MF_SEPARATOR, 0, NULL);
+    AppendMenu(hArchivo, MF_STRING, IDM_ARCHIVO_CERRAR_PESTANA, L"Cerrar &pestaña\tCtrl+W");
+    AppendMenu(hArchivo, MF_STRING, IDM_ARCHIVO_CERRAR_TODO, L"Cerrar &todo");
+    AppendMenu(hArchivo, MF_SEPARATOR, 0, NULL);
     AppendMenu(hArchivo, MF_STRING, IDM_ARCHIVO_SALIR, L"&Salir");
 
     HMENU hEdicion = CreatePopupMenu();

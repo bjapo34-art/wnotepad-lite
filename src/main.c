@@ -18,9 +18,9 @@
 #endif
 
 HINSTANCE g_hInst;
-static WNDPROC g_EditProcOriginal = NULL;
 
-static LRESULT CALLBACK EditSubclass(HWND, UINT, WPARAM, LPARAM);
+static LRESULT CALLBACK EditSubclass(HWND, UINT, WPARAM, LPARAM,
+                                      UINT_PTR, DWORD_PTR);
 
 /* Mensajes del EDIT que pueden cambiar el desplazamiento vertical,
    la línea del cursor o el número de líneas del documento. */
@@ -77,34 +77,83 @@ static BOOL EsMensajeDeCaret(UINT msg)
 
 /* ---------------------------------------------------------------
    EditSubclass: mantiene sincronizados los números de línea y la
-   barra de estado con el editor
+   barra de estado con el editor, y atiende los atajos de teclado.
+   Cada documento tiene su propio EDIT, así que cada uno lleva su
+   subclase (SetWindowSubclass guarda el procedimiento original por
+   control, a diferencia de SetWindowLongPtr).
    --------------------------------------------------------------- */
-static LRESULT CALLBACK EditSubclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+static LRESULT CALLBACK EditSubclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
+                                      UINT_PTR idSubclass, DWORD_PTR dwRefData)
 {
+    UNREFERENCED_PARAMETER(idSubclass);
+    UNREFERENCED_PARAMETER(dwRefData);
+
     switch (msg) {
     case WM_KEYDOWN:
         if (GetKeyState(VK_CONTROL) & 0x8000) {
             HWND hParent = GetParent(hwnd);
+
+            /* Ctrl+Tab / Ctrl+Mayús+Tab: cambiar de pestaña */
+            if (wp == VK_TAB) {
+                BOOL atras = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+                DocsCambiarActivo(atras ? -1 : 1);
+                SetFocus(DocsEditActivo());
+                return 0;
+            }
+
+            /* Ctrl+1..9: ir a la pestaña N */
+            if (wp >= '1' && wp <= '9') {
+                DocsSeleccionar((int)(wp - '1'));
+                SetFocus(DocsEditActivo());
+                return 0;
+            }
+
             switch (wp) {
             case 'N': PostMessage(hParent, WM_COMMAND, IDM_ARCHIVO_NUEVO, 0); return 0;
             case 'O': PostMessage(hParent, WM_COMMAND, IDM_ARCHIVO_ABRIR, 0); return 0;
-            case 'S': PostMessage(hParent, WM_COMMAND, IDM_ARCHIVO_GUARDAR, 0); return 0;
+            case 'S':
+                if (GetKeyState(VK_SHIFT) & 0x8000)
+                    PostMessage(hParent, WM_COMMAND, IDM_ARCHIVO_GUARDAR_COMO, 0);
+                else
+                    PostMessage(hParent, WM_COMMAND, IDM_ARCHIVO_GUARDAR, 0);
+                return 0;
             case 'G': PostMessage(hParent, WM_COMMAND, IDM_EDIT_IR_LINEA, 0); return 0;
+            case 'W': PostMessage(hParent, WM_COMMAND, IDM_ARCHIVO_CERRAR_PESTANA, 0); return 0;
             }
         }
         break;
+
     case WM_CHAR:
+        /* Ctrl+Tab no debe insertar nada en el texto */
+        if (wp == VK_TAB && (GetKeyState(VK_CONTROL) & 0x8000))
+            return 0;
         if (wp == VK_ESCAPE) {
             PostMessage(GetParent(hwnd), WM_CLOSE, 0, 0);
             return 0;
         }
         break;
     }
-    LRESULT res = CallWindowProc(g_EditProcOriginal, hwnd, msg, wp, lp);
 
-    /* Mantener el panel de números de línea sincronizado con el editor */
-    if (EsMensajeDeSincronizacion(msg))
+    LRESULT res = DefSubclassProc(hwnd, msg, wp, lp);
+
+    /* Mantener el panel de números de línea sincronizado con el editor
+       (sólo importa el documento activo) */
+    if (hwnd == DocsEditActivo() && EsMensajeDeSincronizacion(msg))
         LineasActualizar(hwnd);
+
+    /* El EDIT es quien sabe si el documento tiene cambios sin guardar:
+       se anota en el modelo y se repinta la barra de pestañas para que
+       aparezca (o desaparezca) el punto que lo indica */
+    if (hwnd == DocsEditActivo() && EsMensajeDeSincronizacion(msg)) {
+        int indice = DocsActivo();
+        if (indice >= 0) {
+            BOOL modificado = (BOOL)SendMessage(hwnd, EM_GETMODIFY, 0, 0);
+            if (modificado != DocsModificado(indice)) {
+                DocsPonerModificado(indice, modificado);
+                PestanasActualizar(GetParent(hwnd));
+            }
+        }
+    }
 
     /* Actualizar la barra de estado con la posición del cursor */
     if (EsMensajeDeCaret(msg)) {
@@ -117,7 +166,7 @@ static LRESULT CALLBACK EditSubclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 void InstalarSubclaseEdit(HWND hEdit)
 {
-    g_EditProcOriginal = (WNDPROC)SetWindowLongPtr(hEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclass);
+    SetWindowSubclass(hEdit, EditSubclass, 1, 0);
 }
 
 HWND CrearVentanaPrincipal(HINSTANCE hInst, int nCmdShow)
@@ -142,13 +191,11 @@ HWND CrearVentanaPrincipal(HINSTANCE hInst, int nCmdShow)
 
     if (!hwnd) return NULL;
 
-    HWND hEdit = CreateWindowEx(
-        WS_EX_CLIENTEDGE, L"EDIT", L"",
-        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_NOHIDESEL,
-        0, 0, 0, 0, hwnd, (HMENU)IDC_EDIT, hInst, NULL);
+    /* Barra de pestañas: ocupa la franja superior del área de cliente */
+    CrearPestanas(hwnd, hInst);
 
-    SendMessage(hEdit, EM_SETUNDOLIMIT, 100, 0);
-    InstalarSubclaseEdit(hEdit);
+    /* Primer documento (vacío): cada documento tiene su propio EDIT */
+    DocsCrear(hwnd, L"", CODIF_UTF8);
 
     /* El editor nace con una tipografía monoespaciada en lugar de la
        fuente proporcional del sistema. Se aplica antes de crear el
@@ -158,6 +205,12 @@ HWND CrearVentanaPrincipal(HINSTANCE hInst, int nCmdShow)
     /* Panel de números de línea a la izquierda del editor */
     CrearPanelNumeros(hwnd, hInst);
     CrearBarraEstado(hwnd, hInst);
+
+    /* Activar el primer documento: muestra su EDIT y refresca la
+       barra de pestañas, el título y la barra de estado */
+    DocsSeleccionar(0);
+
+    PestanasReflow(hwnd);
     ReflowBarraEstado(hwnd);
     LineasReflow(hwnd);
     ActualizarBarraEstado(hwnd);

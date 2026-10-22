@@ -6,6 +6,8 @@
 #define IDM_ARCHIVO_GUARDAR    103
 #define IDM_ARCHIVO_GUARDAR_COMO 104
 #define IDM_ARCHIVO_SALIR      105
+#define IDM_ARCHIVO_CERRAR_PESTANA 106
+#define IDM_ARCHIVO_CERRAR_TODO   107
 
 // Edición
 #define IDM_EDIT_DESHACER      201
@@ -32,6 +34,7 @@
 #define IDC_EDIT               1000
 #define IDC_STATUSBAR          1001
 #define IDC_NUMEROS_LINEA      1002
+#define IDC_PESTANAS           1003
 
 // Diálogos
 #define IDD_IR_LINEA           601

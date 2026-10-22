@@ -21,8 +21,7 @@ static INT_PTR CALLBACK IrLineaDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp
             WCHAR buf[16];
             GetDlgItemText(hDlg, 1001, buf, 16);
             int linea = _wtoi(buf);
-            HWND hMain = GetWindow(hDlg, GW_OWNER);
-            HWND hEdit = GetDlgItem(hMain, IDC_EDIT);
+            HWND hEdit = DocsEditActivo();
 
             int len = GetWindowTextLength(hEdit);
             WCHAR* txt = (WCHAR*)LocalAlloc(LPTR, (len + 1) * sizeof(WCHAR));

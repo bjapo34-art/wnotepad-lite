@@ -277,7 +277,7 @@ static void EnumerarFamilias(LISTA_FUENTES* lista)
    --------------------------------------------------------------- */
 static void LeerFuenteEditor(HWND hwndPrincipal)
 {
-    HWND hEdit = GetDlgItem(hwndPrincipal, IDC_EDIT);
+    HWND hEdit = DocsEditActivo();
     HFONT hFuente = hEdit ? (HFONT)SendMessage(hEdit, WM_GETFONT, 0, 0) : NULL;
 
     LOGFONTW lf;
@@ -354,25 +354,39 @@ static void ActualizarMuestra(HWND hDlg)
 }
 
 /* ---------------------------------------------------------------
-   AplicarFuenteAlEditor: instala una fuente en el EDIT y la guarda
+   FuenteAplicarA: aplica la tipografía vigente a un EDIT nuevo, para
+   que los documentos que se abran después usen la misma fuente
+   --------------------------------------------------------------- */
+void FuenteAplicarA(HWND hEdit)
+{
+    if (!hEdit || !g_hFuenteEditor) return;
+    SendMessage(hEdit, WM_SETFONT, (WPARAM)g_hFuenteEditor, TRUE);
+}
+
+/* ---------------------------------------------------------------
+   AplicarFuenteAlEditor: instala una fuente en los EDIT y la guarda
    como la viva, liberando la anterior cuando ya nadie la usa.
+   La tipografía es una preferencia de la aplicación, así que se aplica
+   a todos los documentos abiertos.
    --------------------------------------------------------------- */
 static void AplicarFuenteAlEditor(HWND hwndPrincipal, HFONT hNueva)
 {
-    HWND hEdit = GetDlgItem(hwndPrincipal, IDC_EDIT);
-    if (!hEdit || !hNueva) return;
+    if (!hNueva) return;
 
     HFONT hVieja = g_hFuenteEditor;
     g_hFuenteEditor = hNueva;
 
-    SendMessage(hEdit, WM_SETFONT, (WPARAM)hNueva, TRUE);
+    for (int i = 0; i < DocsCantidad(); i++) {
+        HWND hEdit = DocsEdit(i);
+        if (hEdit) SendMessage(hEdit, WM_SETFONT, (WPARAM)hNueva, TRUE);
+    }
 
     /* El panel de números hereda la fuente del EDIT y recalcula su ancho */
     LineasReflow(hwndPrincipal);
-    LineasActualizar(hEdit);
+    LineasActualizar(DocsEditActivo());
     ActualizarBarraEstado(hwndPrincipal);
 
-    /* La fuente anterior ya no la usa nadie: ni el EDIT ni el panel */
+    /* La fuente anterior ya no la usa nadie: ni los EDIT ni el panel */
     if (hVieja) DeleteObject(hVieja);
 }
 
