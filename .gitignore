@@ -29,6 +29,9 @@ build/
 *.VC.db
 *.VC.opendb
 
+# Notas locales de trabajo: no se publican en el repositorio
+ESTADO-SESION.md
+
 # Registros y archivos temporales
 *.log
 *.tmp

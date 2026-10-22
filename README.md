@@ -51,7 +51,6 @@ wnotepad-lite/
 │
 ├── build.bat                   # Script que invoca a rc.exe y cl.exe con las flags correctas
 ├── README.md                   # Este archivo: descripción, estructura, compilación y uso
-├── ESTADO-SESION.md            # Estado del trabajo y notas para retomar en otra sesión
 ├── LICENSE                     # Licencia MIT
 └── .gitignore                  # build/, *.obj, *.exe, *.res, *.ilk, *.pdb
 ```
@@ -132,12 +131,6 @@ Al cerrar una pestaña (o la aplicación) con cambios sin guardar, la app pregun
 * El panel de números, la barra de estado e **Ir a la línea** trabajan con **líneas lógicas** (las que terminan en un salto de línea real), no con las filas visuales que produce el ajuste. `src/lineas.c` mantiene una caché del texto y la invalida cuando el `EDIT` avisa de un cambio de contenido.
 * `res/app.manifest` declara la dependencia de **Common-Controls v6**, necesaria para `SetWindowSubclass` y para los temas visuales.
 * La aplicación es **DPI-unaware**: Windows escala la ventana y virtualiza las coordenadas del ratón.
-
----
-
-## 📚 Documentación adicional
-
-* `ESTADO-SESION.md`: estado del desarrollo, decisiones tomadas, pruebas realizadas y trabajo pendiente. Útil para retomar el proyecto en otra sesión.
 
 ---
 
