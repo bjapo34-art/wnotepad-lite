@@ -150,6 +150,11 @@ HWND CrearVentanaPrincipal(HINSTANCE hInst, int nCmdShow)
     SendMessage(hEdit, EM_SETUNDOLIMIT, 100, 0);
     InstalarSubclaseEdit(hEdit);
 
+    /* El editor nace con una tipografía monoespaciada en lugar de la
+       fuente proporcional del sistema. Se aplica antes de crear el
+       panel de números para que herede la misma tipografía. */
+    AplicarFuentePorDefecto(hwnd);
+
     /* Panel de números de línea a la izquierda del editor */
     CrearPanelNumeros(hwnd, hInst);
     CrearBarraEstado(hwnd, hInst);

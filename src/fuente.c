@@ -10,6 +10,10 @@
  * Al aceptar, la fuente se aplica al control EDIT con WM_SETFONT. El panel
  * de números de línea la hereda del EDIT y recalcula su ancho, por eso
  * después de aplicarla se llama a LineasReflow() y LineasActualizar().
+ *
+ * Al arrancar, el editor usa una tipografía monoespaciada (AplicarFuente-
+ * PorDefecto) porque la fuente del sistema es proporcional y para un bloc
+ * de notas de texto plano conviene una de anchura fija.
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -37,6 +41,16 @@ static const WCHAR* ESTILOS[] = { L"Regular", L"Negrita", L"Cursiva", L"Negrita 
 
 /* Tamaño en puntos con el que se dibujan las familias en la lista */
 #define PUNTOS_LISTA 11
+
+/* Familias monoespaciadas candidatas para la fuente inicial del editor,
+   por orden de preferencia */
+static const WCHAR* FAMILIAS_MONO[] = {
+    L"Consolas", L"Cascadia Mono", L"Courier New", L"Lucida Console"
+};
+#define NUM_FAMILIAS_MONO ((int)(sizeof(FAMILIAS_MONO) / sizeof(FAMILIAS_MONO[0])))
+
+/* Tamaño en puntos de la fuente monoespaciada inicial */
+#define PUNTOS_MONO_DEFECTO 11
 
 /* Elección actual del diálogo */
 static WCHAR g_familia[LF_FACESIZE] = L"Consolas";
@@ -82,6 +96,94 @@ static HFONT CrearFuente(const WCHAR* familia, int puntos, int estilo, int dpi)
     lf.lfCharSet       = DEFAULT_CHARSET;
     lf.lfOutPrecision  = OUT_TT_PRECIS;
     lf.lfQuality       = CLEARTYPE_QUALITY;
+
+    return CreateFontIndirectW(&lf);
+}
+
+/* ---------------------------------------------------------------
+   AnchoCaracteres: mide el ancho total que ocupa un carácter
+   repetido 16 veces. Se repite para no depender del redondeo al
+   píxel: en una fuente de anchura fija el resultado es el mismo
+   para cualquier carácter.
+   --------------------------------------------------------------- */
+static int AnchoCaracteres(HDC hdc, WCHAR caracter)
+{
+    WCHAR buf[16];
+    for (int i = 0; i < 16; i++) buf[i] = caracter;
+
+    SIZE sz;
+    if (!GetTextExtentPoint32W(hdc, buf, 16, &sz)) return 0;
+    return sz.cx;
+}
+
+/* ---------------------------------------------------------------
+   EsFuenteMonoespaciada: comprueba que la fuente creada sea de
+   anchura fija y que corresponda a la familia pedida. GDI sustituye
+   las familias que no están instaladas por otra parecida, así que
+   hay que mirar la fuente realmente seleccionada: si el ancho no es
+   fijo o el nombre no es el pedido, esa familia no sirve.
+   --------------------------------------------------------------- */
+static BOOL EsFuenteMonoespaciada(HFONT hFuente, const WCHAR* familia)
+{
+    if (!hFuente) return FALSE;
+
+    HDC hdc = CreateCompatibleDC(NULL);
+    if (!hdc) return FALSE;
+
+    HFONT hPrevia = (HFONT)SelectObject(hdc, hFuente);
+
+    /* Nombre real de la tipografía que ha elegido GDI */
+    WCHAR cara[LF_FACESIZE];
+    cara[0] = L'\0';
+    GetTextFaceW(hdc, LF_FACESIZE, cara);
+
+    /* Anchura fija: todos los caracteres tienen el mismo avance.
+       No se usa el bit FIXED_PITCH de TEXTMETRIC porque GDI no lo
+       activa en las fuentes TrueType de ancho fijo, así que se
+       comparan los avances reales de caracteres de formas muy
+       distintas (una "i" estrecha y una "W" ancha). */
+    static const WCHAR muestras[] = L"iWM0@";
+    int ancho = AnchoCaracteres(hdc, muestras[0]);
+    BOOL mono = ancho > 0;
+
+    for (int i = 1; mono && muestras[i] != L'\0'; i++) {
+        if (AnchoCaracteres(hdc, muestras[i]) != ancho)
+            mono = FALSE;
+    }
+
+    if (hPrevia) SelectObject(hdc, hPrevia);
+    DeleteDC(hdc);
+
+    if (!mono) return FALSE;
+
+    return _wcsicmp(cara, familia) == 0;
+}
+
+/* ---------------------------------------------------------------
+   CrearFuenteMonoespaciada: crea una fuente de anchura fija.
+   Se prueban varias familias por orden de preferencia y se
+   comprueba que el resultado es realmente monoespaciado. Si
+   ninguna sirve, se pide a Windows una fuente genérica de anchura
+   fija.
+   --------------------------------------------------------------- */
+static HFONT CrearFuenteMonoespaciada(int puntos, int dpi)
+{
+    for (int i = 0; i < NUM_FAMILIAS_MONO; i++) {
+        HFONT hFuente = CrearFuente(FAMILIAS_MONO[i], puntos, ESTILO_REGULAR, dpi);
+        if (!hFuente) continue;
+
+        if (EsFuenteMonoespaciada(hFuente, FAMILIAS_MONO[i])) return hFuente;
+
+        DeleteObject(hFuente);
+    }
+    /* Último recurso: la fuente genérica monoespaciada de Windows */
+    LOGFONTW lf;
+    ZeroMemory(&lf, sizeof(lf));
+    lf.lfHeight = -MulDiv(puntos, dpi, 72);
+    lf.lfCharSet = DEFAULT_CHARSET;
+    lf.lfOutPrecision = OUT_TT_PRECIS;
+    lf.lfQuality = CLEARTYPE_QUALITY;
+    lf.lfPitchAndFamily = FIXED_PITCH | FF_MODERN;
 
     return CreateFontIndirectW(&lf);
 }
@@ -252,28 +354,52 @@ static void ActualizarMuestra(HWND hDlg)
 }
 
 /* ---------------------------------------------------------------
-   AplicarFuente: aplica la fuente elegida al editor de texto
+   AplicarFuenteAlEditor: instala una fuente en el EDIT y la guarda
+   como la viva, liberando la anterior cuando ya nadie la usa.
    --------------------------------------------------------------- */
-static void AplicarFuente(HWND hwndPrincipal)
+static void AplicarFuenteAlEditor(HWND hwndPrincipal, HFONT hNueva)
 {
     HWND hEdit = GetDlgItem(hwndPrincipal, IDC_EDIT);
-    if (!hEdit) return;
-
-    HFONT hNueva = CrearFuente(g_familia, g_puntos, g_estilo, DpiVertical(hwndPrincipal));
-    if (!hNueva) return;
+    if (!hEdit || !hNueva) return;
 
     HFONT hVieja = g_hFuenteEditor;
     g_hFuenteEditor = hNueva;
 
     SendMessage(hEdit, WM_SETFONT, (WPARAM)hNueva, TRUE);
 
-    /* La fuente anterior ya no la usa nadie */
-    if (hVieja) DeleteObject(hVieja);
-
     /* El panel de números hereda la fuente del EDIT y recalcula su ancho */
     LineasReflow(hwndPrincipal);
     LineasActualizar(hEdit);
     ActualizarBarraEstado(hwndPrincipal);
+
+    /* La fuente anterior ya no la usa nadie: ni el EDIT ni el panel */
+    if (hVieja) DeleteObject(hVieja);
+}
+
+/* ---------------------------------------------------------------
+   AplicarFuente: aplica la fuente elegida al editor de texto
+   --------------------------------------------------------------- */
+static void AplicarFuente(HWND hwndPrincipal)
+{
+    HFONT hNueva = CrearFuente(g_familia, g_puntos, g_estilo, DpiVertical(hwndPrincipal));
+    if (!hNueva) return;
+
+    AplicarFuenteAlEditor(hwndPrincipal, hNueva);
+}
+
+/* ---------------------------------------------------------------
+   AplicarFuentePorDefecto: deja el editor con una tipografía
+   monoespaciada desde el arranque. El editor de texto nace con la
+   fuente del sistema, que es proporcional; para un bloc de notas
+   pensado para texto plano lo habitual es una fuente de anchura
+   fija, que además facilita contar columnas.
+   --------------------------------------------------------------- */
+void AplicarFuentePorDefecto(HWND hwndPrincipal)
+{
+    HFONT hFuente = CrearFuenteMonoespaciada(PUNTOS_MONO_DEFECTO, DpiVertical(hwndPrincipal));
+    if (!hFuente) return;   /* se mantiene la fuente del sistema */
+
+    AplicarFuenteAlEditor(hwndPrincipal, hFuente);
 }
 
 /* ---------------------------------------------------------------

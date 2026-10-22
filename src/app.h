@@ -28,6 +28,7 @@ void MostrarIrALinea(HWND hwnd);
 
 /* fuente.c */
 void MostrarFuente(HWND hwnd);
+void AplicarFuentePorDefecto(HWND hwnd);
 
 /* undo_redo.c */
 BOOL PuedeDeshacer(HWND hwnd);
