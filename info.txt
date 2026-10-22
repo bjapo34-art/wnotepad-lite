@@ -1,13 +1,20 @@
 notepad-win32/
 │
 ├── src/
-│   ├── main.c              # Punto de entrada: WinMain, registro de clase, bucle de mensajes
-│   ├── window.c            # Creación de la ventana principal (HWND) y del EDIT child
+│   ├── main.c              # Punto de entrada: WinMain, clase de ventana, subclase del EDIT
+│   ├── window.c            # WndProcPrincipal, OnSize (recolocar controles) y cierre de la app
+│   ├── documentos.c        # Modelo de documentos: un EDIT por pestaña, datos y estado de cada uno
+│   ├── pestanas.c          # Barra de pestañas dibujada a mano (región GDI, X, punto de cambios, flechas)
 │   ├── menu.c              # Construcción del menú (Archivo, Edición, Formato, Ver, Ayuda)
-│   ├── dialogs.c           # Diálogos: "Acerca de", "Fuente", "Ir a la línea"
+│   ├── dialogs.c           # Diálogos: "Acerca de", "Ir a la línea"
+│   ├── fuente.c            # Diálogo "Formato > Fuente..." propio y aplicación de la tipografía
 │   ├── fileio.c            # Abrir/Guardar (GetOpenFileName/GetSaveFileName), lectura/escritura
+│   ├── codificacion.c      # Detección y conversión de codificaciones (ANSI, UTF-8, UTF-16)
+│   ├── linenumbers.c       # Panel de números de línea dibujado a mano
+│   ├── statusbar.c         # Barra de estado (línea/columna, tamaño, codificación, nombre del archivo)
 │   ├── undo_redo.c         # Soporte de deshacer/rehacer (EM_UNDO o pila propia)
-│   └── resources.h         # IDs simbólicos: IDM_ARCHIVO_ABRIR, IDC_EDIT, etc.
+│   ├── app.h               # API compartida entre módulos
+│   └── resources.h         # IDs simbólicos: IDM_ARCHIVO_ABRIR, IDC_EDIT, IDC_PESTANAS, etc.
 │
 ├── res/
 │   ├── app.manifest        # Manifest: activar temas visuales (ComCtl32 v6)
@@ -20,5 +27,7 @@ notepad-win32/
 │   └── notepad.exe         # Ejecutable final
 │
 ├── build.bat               # Script que invoca a rc.exe y cl.exe con las flags correctas
+├── info.txt                # Este mapa de la estructura del proyecto
+├── ESTADO-SESION.md        # Estado del trabajo y notas para retomar en otra sesión
 ├── README.md               # Cómo compilar, requisitos, capturas
 └── .gitignore              # build/, *.obj, *.exe, *.ilk, *.pdb
