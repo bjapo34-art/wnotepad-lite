@@ -54,6 +54,14 @@ void LineasActualizar(HWND hEdit);
 void LineasReflow(HWND hwndPrincipal);
 int  LineasAnchoRequerido(HWND hwndPrincipal);
 
+/* lineas.c - numeración lógica (los ajustes de línea no cuentan) */
+void LineasInvalidarTexto(HWND hEdit);
+int  LineasTotalLogicas(HWND hEdit);
+int  LineasLogicaDePos(HWND hEdit, int pos, int* inicio);
+int  LineasPosDeLogica(HWND hEdit, int logica);
+int  LineasNumerosVisibles(HWND hEdit, int primera, int cuantas,
+                           int* numeros);
+
 /* codificacion.c */
 CODIFICACION DetectarCodificacion(const BYTE* datos, DWORD tam);
 BOOL TextoDesdeBytes(BYTE* datos, DWORD tam, WCHAR** salida, int* largo, CODIFICACION* cod);
@@ -89,7 +97,8 @@ void DocsCambiarActivo(int delta);
 BOOL DocsCerrar(HWND hwnd, int indice);
 BOOL DocsCerrarTodos(HWND hwnd, BOOL dejarEnBlanco);
 void DocsColocarEdit(HWND hwnd, int x, int y, int ancho, int alto);
-void DocsEstablecerAjuste(BOOL ajustado);
+void DocsEstablecerAjuste(HWND hwndPadre, BOOL ajustado);
+BOOL DocsAjusteLinea(void);
 
 /* pestanas.c - barra de pestañas */
 HWND CrearPestanas(HWND hwndPadre, HINSTANCE hInst);

@@ -75,6 +75,33 @@ static BOOL EsMensajeDeCaret(UINT msg)
     return FALSE;
 }
 
+/* Mensajes del EDIT que pueden cambiar el texto del documento. Cuando
+   llega uno hay que invalidar la caché de líneas lógicas (lineas.c)
+   antes de que el EDIT lo procese. */
+static BOOL EsMensajeDeContenido(UINT msg, WPARAM wp)
+{
+    switch (msg) {
+    case WM_CHAR: case WM_IME_CHAR:
+    case WM_SETTEXT: case WM_CUT: case WM_PASTE: case WM_CLEAR:
+    case WM_UNDO: case EM_REPLACESEL: case EM_UNDO:
+        return TRUE;
+    case WM_KEYDOWN:
+        /* Borrar, Insert (puede pegar con Mayúsculas) y los atajos de
+           pegar/cortar/deshacer/rehacer con Ctrl */
+        if (wp == VK_DELETE || wp == VK_BACK || wp == VK_INSERT)
+            return TRUE;
+        if (GetKeyState(VK_CONTROL) & 0x8000) {
+            switch (wp) {
+            case 'V': case 'X': case 'Z': case 'Y':
+            case VK_INSERT: case VK_DELETE: case VK_BACK:
+                return TRUE;
+            }
+        }
+        return FALSE;
+    }
+    return FALSE;
+}
+
 /* ---------------------------------------------------------------
    EditSubclass: mantiene sincronizados los números de línea y la
    barra de estado con el editor, y atiende los atajos de teclado.
@@ -134,7 +161,20 @@ static LRESULT CALLBACK EditSubclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
         break;
     }
 
+    /* El texto está a punto de cambiar: la caché de líneas lógicas deja
+       de ser válida (se recarga en la siguiente consulta) */
+    if (EsMensajeDeContenido(msg, wp))
+        LineasInvalidarTexto(hwnd);
+
     LRESULT res = DefSubclassProc(hwnd, msg, wp, lp);
+
+    /* El EDIT ya ha aplicado el cambio, pero durante su procesamiento
+       pueden llegar notificaciones (EN_CHANGE, etc.) que consulten el
+       texto a medias y dejen la caché con un estado intermedio. Se
+       invalida otra vez para que la siguiente consulta lea el texto
+       definitivo (por ejemplo, al pegar un bloque de varias líneas). */
+    if (EsMensajeDeContenido(msg, wp))
+        LineasInvalidarTexto(hwnd);
 
     /* Mantener el panel de números de línea sincronizado con el editor
        (sólo importa el documento activo) */

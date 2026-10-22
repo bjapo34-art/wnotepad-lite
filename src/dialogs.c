@@ -21,20 +21,14 @@ static INT_PTR CALLBACK IrLineaDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp
             WCHAR buf[16];
             GetDlgItemText(hDlg, 1001, buf, 16);
             int linea = _wtoi(buf);
-            HWND hEdit = DocsEditActivo();
+            if (linea < 1) linea = 1;
 
-            int len = GetWindowTextLength(hEdit);
-            WCHAR* txt = (WCHAR*)LocalAlloc(LPTR, (len + 1) * sizeof(WCHAR));
-            if (txt) {
-                GetWindowText(hEdit, txt, len + 1);
-                int idx = 0, actual = 1;
-                while (idx < len && actual < linea) {
-                    if (txt[idx] == L'\n') actual++;
-                    idx++;
-                }
+            /* Las líneas son lógicas: los ajustes de línea no cuentan */
+            HWND hEdit = DocsEditActivo();
+            if (hEdit) {
+                int idx = LineasPosDeLogica(hEdit, linea);
                 SendMessage(hEdit, EM_SETSEL, idx, idx);
                 SendMessage(hEdit, EM_SCROLLCARET, 0, 0);
-                LocalFree(txt);
             }
             EndDialog(hDlg, IDOK);
         } else if (LOWORD(wp) == IDCANCEL) {

@@ -41,6 +41,11 @@ static DOCUMENTO g_documentos[MAX_DOCUMENTOS];
 static int g_cantidad = 0;   /* número de documentos abiertos */
 static int g_activo   = -1;  /* índice del documento activo  */
 
+/* Preferencia de la ventana: ajuste de línea activado. El control EDIT
+   decide si ajusta o no en el momento de crearse (según ES_AUTOHSCROLL),
+   así que cambiarla obliga a recrear los EDIT (ver DocsEstablecerAjuste). */
+static BOOL g_ajusteLinea = TRUE;
+
 /* ---------------------------------------------------------------
    Acceso a los datos de la lista
    --------------------------------------------------------------- */
@@ -130,18 +135,37 @@ int DocsIndiceDeRuta(const WCHAR* ruta)
 }
 
 /* ---------------------------------------------------------------
+   DocsAjusteLinea: indica si el ajuste de línea está activado
+   (preferencia común a todos los documentos)
+   --------------------------------------------------------------- */
+BOOL DocsAjusteLinea(void)
+{
+    return g_ajusteLinea;
+}
+
+/* ---------------------------------------------------------------
    CrearEditor: crea el control EDIT de un documento. Nace oculto;
    DocsSeleccionar() decide cuál se ve.
+
+   El ajuste de línea se elige aquí y no se puede cambiar después:
+   el EDIT decide cómo maquetar el texto al crearse. Con ajuste, las
+   líneas largas se parten al ancho del control; sin ajuste se añade
+   ES_AUTOHSCROLL (y WS_HSCROLL) para poder desplazarse en horizontal.
    --------------------------------------------------------------- */
-static HWND CrearEditor(HWND hwndPadre)
+static HWND CrearEditor(HWND hwndPadre, BOOL ajustado)
 {
+    DWORD estilo = WS_CHILD | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL |
+                   ES_NOHIDESEL;
+
+    if (!ajustado)
+        estilo |= ES_AUTOHSCROLL | WS_HSCROLL;
+
     /* Sin WS_EX_CLIENTEDGE: con los temas de Windows 10/11 ese borde se
        pinta en el color de acento (una línea azul alrededor del texto).
        Sin él el editor queda plano y la pestaña activa continua con
        él, como en los editores al estilo Sublime Text. */
     HWND hEdit = CreateWindowEx(
-        0, L"EDIT", L"",
-        WS_CHILD | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_NOHIDESEL,
+        0, L"EDIT", L"", estilo,
         0, 0, 0, 0, hwndPadre, (HMENU)(INT_PTR)IDC_EDIT, g_hInst, NULL);
 
     if (!hEdit) return NULL;
@@ -160,6 +184,70 @@ static HWND CrearEditor(HWND hwndPadre)
 }
 
 /* ---------------------------------------------------------------
+   RecrearEditor: sustituye el EDIT de un documento por otro con el
+   ajuste de línea indicado, conservando su texto, la selección, el
+   desplazamiento vertical y la marca de modificado.
+
+   El EDIT no permite cambiar el ajuste en caliente, de ahí la
+   recreación. La pila de deshacer no se puede conservar: el control
+   nuevo empieza con el historial vacío.
+   --------------------------------------------------------------- */
+static void RecrearEditor(HWND hwndPadre, int indice, BOOL ajustado)
+{
+    DOCUMENTO* doc = &g_documentos[indice];
+    HWND hViejo = doc->hEdit;
+    if (!hViejo) return;
+
+    /* Copiar el texto antes de destruir el control */
+    int largo = (int)SendMessage(hViejo, WM_GETTEXTLENGTH, 0, 0);
+    WCHAR* texto = NULL;
+    if (largo > 0) {
+        texto = (WCHAR*)LocalAlloc(LPTR, (SIZE_T)(largo + 1) * sizeof(WCHAR));
+        if (!texto) return;   /* sin memoria: se queda el EDIT anterior */
+        SendMessage(hViejo, WM_GETTEXT, (WPARAM)(largo + 1), (LPARAM)texto);
+    }
+
+    DWORD inicio = 0, fin = 0;
+    SendMessage(hViejo, EM_GETSEL, (WPARAM)&inicio, (LPARAM)&fin);
+
+    int primeraVisible = (int)SendMessage(hViejo, EM_GETFIRSTVISIBLELINE, 0, 0);
+    BOOL modificado = doc->modificado;
+
+    /* Misma posición y tamaño que el control anterior */
+    RECT rc;
+    GetWindowRect(hViejo, &rc);
+    MapWindowPoints(NULL, hwndPadre, (POINT*)&rc, 2);
+
+    HWND hNuevo = CrearEditor(hwndPadre, ajustado);
+    if (!hNuevo) {
+        if (texto) LocalFree(texto);
+        return;
+    }
+
+    if (texto) {
+        SetWindowText(hNuevo, texto);
+        LocalFree(texto);
+    }
+
+    MoveWindow(hNuevo, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
+               FALSE);
+
+    /* Restaurar selección, desplazamiento y marca de modificado. El orden
+       importa: EM_SETSEL puede desplazar la vista para enseñar el cursor,
+       así que el scroll se ajusta después, de forma absoluta. */
+    SendMessage(hNuevo, EM_SETSEL, (WPARAM)inicio, (LPARAM)fin);
+
+    int visibleAhora = (int)SendMessage(hNuevo, EM_GETFIRSTVISIBLELINE, 0, 0);
+    if (primeraVisible != visibleAhora)
+        SendMessage(hNuevo, EM_LINESCROLL, 0, (LPARAM)(primeraVisible - visibleAhora));
+
+    SendMessage(hNuevo, EM_SETMODIFY, (WPARAM)modificado, 0);
+
+    doc->hEdit = hNuevo;
+    DestroyWindow(hViejo);
+}
+
+/* ---------------------------------------------------------------
    DocsCrear: añade un documento nuevo (con su EDIT) al final de la
    lista y devuelve su índice, o -1 si no se pudo crear.
    --------------------------------------------------------------- */
@@ -167,7 +255,7 @@ int DocsCrear(HWND hwndPadre, const WCHAR* ruta, CODIFICACION cod)
 {
     if (g_cantidad >= MAX_DOCUMENTOS) return -1;
 
-    HWND hEdit = CrearEditor(hwndPadre);
+    HWND hEdit = CrearEditor(hwndPadre, g_ajusteLinea);
     if (!hEdit) return -1;
 
     DOCUMENTO* doc = &g_documentos[g_cantidad];
@@ -182,22 +270,20 @@ int DocsCrear(HWND hwndPadre, const WCHAR* ruta, CODIFICACION cod)
 /* ---------------------------------------------------------------
    DocsEstablecerAjuste: activa o desactiva el ajuste de línea en
    todos los documentos. Es una preferencia de la ventana, así que
-   se aplica a todos los EDIT abiertos.
+   se aplica a todos los EDIT abiertos y a los que se abran después.
    --------------------------------------------------------------- */
-void DocsEstablecerAjuste(BOOL ajustado)
+void DocsEstablecerAjuste(HWND hwndPadre, BOOL ajustado)
 {
-    for (int i = 0; i < g_cantidad; i++) {
-        HWND hEdit = g_documentos[i].hEdit;
-        if (!hEdit) continue;
+    if (ajustado == g_ajusteLinea) return;
 
-        LONG estilo = GetWindowLong(hEdit, GWL_STYLE);
-        if (ajustado)
-            estilo &= ~ES_AUTOHSCROLL;
-        else
-            estilo |= ES_AUTOHSCROLL;
+    g_ajusteLinea = ajustado;
 
-        SetWindowLong(hEdit, GWL_STYLE, estilo);
-    }
+    for (int i = 0; i < g_cantidad; i++)
+        RecrearEditor(hwndPadre, i, ajustado);
+
+    /* Los EDIT nuevos aún no se ven: DocsSeleccionar muestra el activo,
+       le devuelve el foco y refresca panel, barra de estado y pestañas */
+    DocsSeleccionar(g_activo);
 }
 
 /* ---------------------------------------------------------------
@@ -223,6 +309,11 @@ void DocsSeleccionar(int indice)
     HWND hEdit = g_documentos[indice].hEdit;
     HWND hwnd = GetParent(hEdit);
     if (!hwnd) return;
+
+    /* Al cambiar de documento hay que recargar su texto en lineas.c:
+       Windows puede reutilizar el handle de un EDIT destruido y, en ese
+       caso, la caché creería que sigue viendo el documento anterior. */
+    LineasInvalidarTexto(hEdit);
 
     /* Si el EDIT que tenía el foco se acaba de ocultar, el foco pasa al
        documento activo: si no, los atajos de teclado dejarían de llegar

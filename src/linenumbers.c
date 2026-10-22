@@ -3,7 +3,11 @@
  * El panel es un control hijo del EDIT principal. Dibuja el número de cada
  * línea del documento, sincronizado con:
  *   - el desplazamiento vertical del EDIT (EM_GETFIRSTVISIBLELINE)
- *   - la línea donde está el cursor (EM_LINEFROMCHAR)
+ *   - la línea donde está el cursor
+ *
+ * Los números son de líneas LÓGICAS (las que terminan en un salto de línea
+ * real): con el ajuste de línea activo, las filas en las que el EDIT parte
+ * una línea larga no repiten número ni lo incrementan (ver lineas.c).
  *
  * El panel no tiene barra de desplazamiento propia: siempre muestra el
  * rango de líneas que el EDIT tiene a la vista.
@@ -29,6 +33,9 @@
 /* Separación entre el número y el borde derecho del panel */
 #define MARGEN_NUMEROS 8
 
+/* Filas que se pueden llegar a numerar en una sola pasada de pintado */
+#define MAX_FILAS_PANEL 512
+
 /* El EDIT deja 1 px por encima de su primera línea de texto respecto a su
    área de cliente: ese píxel se compensa aquí para que el número quede
    exactamente sobre su línea (medido igual con la fuente del sistema y
@@ -36,7 +43,6 @@
 #define AJUSTE_LINEA 1
 
 /* Estado del panel */
-static int g_primeraVisible = 1; /* primera línea a la vista (1-based)  */
 static int g_lineaActual    = 0; /* línea del cursor (0-based)          */
 static int g_totalLineas    = 1; /* total de líneas del documento       */
 static int g_anchoPanel     = 0; /* ancho en píxeles del panel          */
@@ -68,7 +74,7 @@ int LineasAnchoRequerido(HWND hwndPrincipal)
     HWND hEdit = DocsEditActivo();
     if (!hEdit) return 0;
 
-    int total = (int)SendMessage(hEdit, EM_GETLINECOUNT, 0, 0);
+    int total = LineasTotalLogicas(hEdit);
     if (total < 1) total = 1;
 
     int digitos = 1;
@@ -148,12 +154,18 @@ static void PintarPanel(HWND hPanel)
     int altoLinea = tm.tmHeight;
     if (altoLinea <= 0) altoLinea = 12;
 
-    int total = (int)SendMessage(hEdit, EM_GETLINECOUNT, 0, 0);
+    int total = LineasTotalLogicas(hEdit);
     if (total < 1) total = 1;
 
     int primera = (int)SendMessage(hEdit, EM_GETFIRSTVISIBLELINE, 0, 0);
     if (primera < 0) primera = 0;
     int lineasVisibles = rc.bottom / altoLinea + 2;
+
+    /* Número de línea lógica de cada fila visible (0 = fila que sólo es
+       continuación de una línea larga ajustada, no lleva número) */
+    int numeros[MAX_FILAS_PANEL];
+    if (lineasVisibles > MAX_FILAS_PANEL) lineasVisibles = MAX_FILAS_PANEL;
+    int filas = LineasNumerosVisibles(hEdit, primera, lineasVisibles, numeros);
 
     SetBkMode(hdc, TRANSPARENT);
 
@@ -161,8 +173,9 @@ static void PintarPanel(HWND hPanel)
        área de cliente, de modo que los números deben desplazarse igual */
     int margen = MargenClienteEdit(hEdit);
 
-    for (int i = 0; i < lineasVisibles; i++) {
-        int numero = primera + i + 1;
+    for (int i = 0; i < filas; i++) {
+        int numero = numeros[i];
+        if (numero <= 0) continue;  /* fila de continuación por ajuste */
         if (numero > total) break;
 
         WCHAR texto[16];
@@ -310,21 +323,23 @@ void LineasActualizar(HWND hEdit)
     int primera = (int)SendMessage(hEdit, EM_GETFIRSTVISIBLELINE, 0, 0);
     if (primera < 0) primera = 0;
 
-    int total = (int)SendMessage(hEdit, EM_GETLINECOUNT, 0, 0);
+    /* Total de líneas lógicas: los ajustes de línea no cuentan */
+    int total = LineasTotalLogicas(hEdit);
     if (total < 1) total = 1;
 
-    /* El cursor queda al final de la selección (EM_GETSEL: inicio en la
-       palabra baja, fin en la alta). EM_LINEFROMCHAR es 0-based. */
-    DWORD sel = (DWORD)SendMessage(hEdit, EM_GETSEL, 0, 0);
-    int posCursor = (int)HIWORD(sel);
-    int lineaActual = (int)SendMessage(hEdit, EM_LINEFROMCHAR, (WPARAM)posCursor, 0);
+    /* El cursor queda al final de la selección. Se usa la variante con
+       punteros porque la empaquetada pierde los bits altos en documentos
+       de más de 65.535 caracteres. La línea es lógica (0-based). */
+    DWORD inicioSel = 0, finSel = 0;
+    SendMessage(hEdit, EM_GETSEL, (WPARAM)&inicioSel, (LPARAM)&finSel);
+    int posCursor = (int)(finSel >= inicioSel ? finSel : inicioSel);
+    int lineaActual = LineasLogicaDePos(hEdit, posCursor, NULL) - 1;
     if (lineaActual < 0) lineaActual = 0;
 
-    if (primera != g_primeraVisible || lineaActual != g_lineaActual) {
-        g_primeraVisible = primera;
-        g_lineaActual    = lineaActual;
-        InvalidateRect(hPanel, NULL, FALSE);
-    }
+    /* Se repinta siempre: al escribir puede cambiar el reparto en filas
+       del ajuste de línea y, con él, la fila en la que cae cada número */
+    g_lineaActual = lineaActual;
+    InvalidateRect(hPanel, NULL, FALSE);
 
     /* Si el documento creció y el panel ya no cabe, hay que ensancharlo */
     if (total != g_totalLineas) {

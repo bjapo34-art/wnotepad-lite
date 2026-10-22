@@ -2,7 +2,7 @@
 
 > Archivo de traspaso. Sirve para retomar el trabajo en una sesión nueva
 > sin tener que reconstruir todo el contexto desde cero.
-> Última actualización: 21/10/2026 (sesión del sistema de pestañas).
+> Última actualización: 22/10/2026 (ajuste de línea y numeración lógica).
 
 ---
 
@@ -12,8 +12,9 @@
 C:\Users\Beto\Code\winapi\notepad      (repo git, rama main, sin remoto)
 ```
 
-Último commit: `5ff59ca Anade un sistema de pestañas al editor`
-(anterior: `acdfe64`). El árbol quedó limpio tras ese commit.
+Último commit: `84aa25e Renombra la app a wnotepad lite y anade README y licencia MIT`.
+El árbol tiene **cambios sin commitear**: ajuste de línea conmutable y numeración
+lógica (ver `git status`).
 
 ## 2. Compilar
 
@@ -25,7 +26,7 @@ cmd /c '"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Buil
   y `rc.exe`. Debe salir **sin avisos** (requisito del proyecto).
 - `build.bat` reenvía `%*` a `cl.exe`, así que admite flags extra
   (por ejemplo `/DDEBUG_LOG`).
-- Salida: `build\notepad.exe`.
+- Salida: `build\wnotepad.exe`.
 
 ## 3. Arquitectura actual
 
@@ -33,8 +34,9 @@ Módulos nuevos (los dos últimos):
 
 | Archivo | Contenido |
 |---|---|
-| `src/documentos.c` | Modelo de documentos: lista de documentos, cuál está activo, ruta/codificación/**modificado** de cada uno. Un `EDIT` por documento (conserva pila de deshacer, selección y scroll). |
+| `src/documentos.c` | Modelo de documentos: lista de documentos, cuál está activo, ruta/codificación/**modificado** de cada uno. Un `EDIT` por documento (conserva pila de deshacer, selección y scroll). También guarda la preferencia de ajuste de línea y recrea los `EDIT` al cambiarla. |
 | `src/pestanas.c` | Barra de pestañas dibujada a mano: pestañas redondeadas (región GDI + `FrameRgn`), X de cierre, punto de "modificado", flechas de desplazamiento, rueda y clic. Clase `NotepadPestanas`, `IDC_PESTANAS` = 1003, alto 26. |
+| `src/lineas.c` | Líneas **lógicas** del documento: caché del texto del `EDIT` activo (`GetWindowText`) e índice de saltos de línea. Traduce posiciones ↔ líneas lógicas para el panel, la barra de estado e "Ir a la línea", de modo que las filas del ajuste de línea no cuentan. Se invalida con los mensajes que cambian el texto (`main.c`). |
 
 Decisiones importantes:
 
@@ -54,6 +56,15 @@ Decisiones importantes:
   documentos modificados (de atrás hacia delante) y, si se cancela, no se
   cierra ninguno. `dejarEnBlanco = TRUE` deja una pestaña nueva vacía
   ("Cerrar todo"), `FALSE` es el cierre de la aplicación.
+- El ajuste de línea es una preferencia de la ventana (`g_ajusteLinea`). El
+  `EDIT` decide si ajusta al crearse, así que `DocsEstablecerAjuste` **recrea**
+  los `EDIT` conservando texto, selección, scroll y marca de modificado; la
+  pila de deshacer se pierde (limitación asumida).
+- La numeración (panel y barra de estado) y "Ir a la línea" usan **líneas
+  lógicas**. Con ajuste activo, las filas de continuación no llevan número ni
+  incrementan la cuenta. La caché de `lineas.c` se invalida antes y después
+  de procesar los mensajes de contenido: durante `WM_PASTE` llegan
+  notificaciones reentrantes que podrían cachear el texto a medias.
 
 ## 4. Funcionalidad implementada y comprobada
 
@@ -67,6 +78,8 @@ Decisiones importantes:
 | Cancelar **no** cierra nada | ✓ |
 | Cierre de la app: un aviso por documento modificado | ✓ |
 | "Cerrar todo": avisa por cada modificado y deja 1 pestaña en blanco | ✓ |
+| Ajuste de línea conmutable (Formato > Ajuste de línea) | ✓ |
+| Numeración y "Ir a la línea" **lógicos** con ajuste activo | ✓ |
 | Nunca queda la app sin pestañas | ✓ |
 | Deshacer independiente por pestaña | ✓ |
 | La fuente se aplica a **todas** las pestañas; las nuevas la heredan | ✓ |
@@ -74,11 +87,27 @@ Decisiones importantes:
 | Números de línea alineados con el texto | ✓ |
 | Codificaciones (8 casos de prueba) | ✓ 8/8 |
 | Desplazamiento de la barra con muchas pestañas | ✓ |
+| Ejecutable `build\wnotepad.exe` y "Acerca de" con © 2026 jrgclzd | ✓ |
 
 Atajos: `Ctrl+N/O/S/G`, `Ctrl+Mayús+S`, `Ctrl+W`, `Ctrl+Tab`, `Ctrl+Shift+Tab`,
 `Ctrl+1..9`, `Esc` cierra la aplicación.
 
 Menú: "Cerrar &pestaña" (ID 106) y "Cerrar &todo" (ID 107).
+
+Comprobado el 22/10/2026 (capturas + `sbtext.exe` + `analizap.exe`):
+
+- Con una línea de 212 caracteres y ajuste activo, el margen muestra `1`, `2`
+  (con 2 filas en blanco de continuación), `3` y `4`; la barra de estado dice
+  "4 líneas" y `Lín. 2, Col. 123/213` al pulsar en las filas de continuación.
+- Con ajuste desactivado, los cuatro números quedan en filas consecutivas.
+- "Ir a la línea 3" salta al inicio de `dos`; con 100 salta al final.
+- Al pegar 8 líneas largas + `fin`, la barra muestra **9 líneas** de inmediato
+  (corregida la caché que se llenaba a medias durante `WM_PASTE`).
+- El ancho del panel sigue el número de líneas **lógicas** (9 líneas → 1
+  dígito; al llegar a 10 → 2 dígitos) aunque el ajuste genere ~25 filas.
+- Multi-pestaña: al cambiar con Ctrl+Tab se recuperan línea/columna y total
+  correctos de cada documento (incluido el caso de handles reutilizados).
+- `codtest2.ps1`: **8/8**.
 
 ## 5. Verificación por píxeles (el modelo no puede leer imágenes)
 
@@ -144,6 +173,8 @@ shotdlg <bmp> / shotwin / shotall
 7. Documentación: `README.md` ya recoge estructura, requisitos, compilación,
    atajos y notas de implementación; `info.txt` se eliminó porque duplicaba
    esa información.
+8. Recordar el ajuste de línea (y quizá el tamaño de letra) entre ejecuciones;
+   ahora el ajuste arranca siempre activado.
 
 ## 8. Reglas del proyecto (para seguir respetándolas)
 

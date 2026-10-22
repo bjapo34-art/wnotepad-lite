@@ -444,23 +444,15 @@ void ManejarComando(HWND hwnd, WPARAM wParam, HINSTANCE hInst)
 
     /* --- Formato --- */
     case IDM_FMT_AJUSTE: {
-        /* Alternar el ajuste de línea (ajuste de palabras) del editor.
-           El control EDIT ajusta las líneas cuando NO tiene ES_AUTOHSCROLL */
-        if (hEdit) {
-            LONG estilo = GetWindowLong(hEdit, GWL_STYLE);
-            BOOL ajustado = (estilo & ES_AUTOHSCROLL) == 0;
+        /* Alternar el ajuste de línea. El EDIT decide si ajusta al crearse,
+           así que DocsEstablecerAjuste recrea los controles conservando su
+           contenido y su estado. */
+        BOOL ajustado = !DocsAjusteLinea();
 
-            /* Es una preferencia de la ventana: se aplica a todos los
-               documentos abiertos */
-            DocsEstablecerAjuste(ajustado);
+        DocsEstablecerAjuste(hwnd, ajustado);
 
-            CheckMenuItem(GetMenu(hwnd), IDM_FMT_AJUSTE,
-                          MF_BYCOMMAND | (ajustado ? MF_UNCHECKED : MF_CHECKED));
-
-            /* El ancho del EDIT cambia: hay que recolocar y repintar */
-            RedrawWindow(hEdit, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-            LineasActualizar(hEdit);
-        }
+        CheckMenuItem(GetMenu(hwnd), IDM_FMT_AJUSTE,
+                      MF_BYCOMMAND | (ajustado ? MF_CHECKED : MF_UNCHECKED));
         break;
     }
 
@@ -499,7 +491,8 @@ void ManejarComando(HWND hwnd, WPARAM wParam, HINSTANCE hInst)
     /* --- Ayuda --- */
     case IDM_AYUDA_ACERCA:
         MessageBox(hwnd,
-                   L"wnotepad lite\nHecho con cl.exe y WinAPI pura",
+                   L"wnotepad lite\nHecho con cl.exe y WinAPI pura\n\n"
+                   L"\u00A9 2026 jrgclzd",
                    L"Acerca de",
                    MB_OK | MB_ICONINFORMATION);
         break;

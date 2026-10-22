@@ -248,22 +248,22 @@ void ActualizarBarraEstado(HWND hwnd)
     HWND hEdit   = DocsEditActivo();
     if (!hStatus || !hEdit || !IsWindowVisible(hStatus)) return;
 
-    /* Posición del cursor: EM_GETSEL devuelve el inicio de la selección
-       en la palabra baja y el final en la alta; el cursor queda al final. */
-    DWORD sel = (DWORD)SendMessage(hEdit, EM_GETSEL, 0, 0);
-    int inicio = (int)LOWORD(sel);
-    int fin    = (int)HIWORD(sel);
-    int cursor = fin >= inicio ? fin : inicio;
+    /* Posición del cursor: el cursor queda al final de la selección. Se
+       usa la variante con punteros porque la empaquetada pierde los bits
+       altos en documentos de más de 65.535 caracteres. */
+    DWORD inicio = 0, fin = 0;
+    SendMessage(hEdit, EM_GETSEL, (WPARAM)&inicio, (LPARAM)&fin);
+    int cursor = (int)(fin >= inicio ? fin : inicio);
 
-    int linea0 = (int)SendMessage(hEdit, EM_LINEFROMCHAR, (WPARAM)cursor, 0);
+    /* Línea y columna LÓGICAS: con el ajuste de línea activo, las filas
+       en las que el EDIT parte una línea larga no cuentan como líneas. */
+    int inicioLinea = 0;
+    int linea0 = LineasLogicaDePos(hEdit, cursor, &inicioLinea) - 1;
     if (linea0 < 0) linea0 = 0;
+    int col0 = cursor - inicioLinea;
 
-    int indiceLinea = (int)SendMessage(hEdit, EM_LINEINDEX, (WPARAM)linea0, 0);
-    if (indiceLinea < 0) indiceLinea = 0;
-    int col0 = cursor - indiceLinea;
-
-    /* Número de líneas y de caracteres del documento */
-    int totalLineas = (int)SendMessage(hEdit, EM_GETLINECOUNT, 0, 0);
+    /* Número de líneas lógicas y de caracteres del documento */
+    int totalLineas = LineasTotalLogicas(hEdit);
     if (totalLineas < 1) totalLineas = 1;
     int totalChars = GetWindowTextLength(hEdit);
 
