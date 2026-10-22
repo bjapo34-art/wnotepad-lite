@@ -40,9 +40,9 @@ void PonerTitulo(HWND hwnd)
     const WCHAR* ruta = DocsRuta(DocsActivo());
 
     if (ruta && ruta[0])
-        wsprintf(titulo, L"%s - Bloc de notas", ruta);
+        wsprintf(titulo, L"%s - wnotepad lite", ruta);
     else
-        lstrcpy(titulo, L"Sin título - Bloc de notas");
+        lstrcpy(titulo, L"Sin título - wnotepad lite");
 
     SetWindowText(hwnd, titulo);
 }
@@ -100,7 +100,7 @@ void NuevoDocumento(HWND hwnd)
     int indice = DocsCrear(hwnd, L"", CODIF_UTF8);
     if (indice < 0) {
         MessageBox(hwnd, L"No se pueden abrir más documentos",
-                   L"Bloc de notas", MB_OK | MB_ICONWARNING);
+                   L"wnotepad lite", MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -181,7 +181,7 @@ void AbrirDocumento(HWND hwnd, HINSTANCE hInst)
     if (indice < 0) {
         LocalFree(texto);
         MessageBox(hwnd, L"No se pueden abrir más documentos",
-                   L"Bloc de notas", MB_OK | MB_ICONWARNING);
+                   L"wnotepad lite", MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -310,7 +310,7 @@ BOOL ConfirmarGuardado(HWND hwnd, int indice)
     WCHAR msg[512];
     wsprintf(msg, L"¿Guardar los cambios en %s?", nombre);
 
-    int r = MessageBox(hwnd, msg, L"Bloc de notas",
+    int r = MessageBox(hwnd, msg, L"wnotepad lite",
                         MB_YESNOCANCEL | MB_ICONQUESTION);
 
     if (r == IDCANCEL) return FALSE;
@@ -499,7 +499,7 @@ void ManejarComando(HWND hwnd, WPARAM wParam, HINSTANCE hInst)
     /* --- Ayuda --- */
     case IDM_AYUDA_ACERCA:
         MessageBox(hwnd,
-                   L"Bloc de notas Win32\nHecho con cl.exe y WinAPI pura",
+                   L"wnotepad lite\nHecho con cl.exe y WinAPI pura",
                    L"Acerca de",
                    MB_OK | MB_ICONINFORMATION);
         break;

@@ -38,7 +38,7 @@ HMENU ConstruirMenuPrincipal(void)
     AppendMenu(hVer, MF_STRING | MF_CHECKED, IDM_VER_NUMEROS_LINEA, L"Números de &línea");
 
     HMENU hAyuda = CreatePopupMenu();
-    AppendMenu(hAyuda, MF_STRING, IDM_AYUDA_ACERCA, L"&Acerca del Bloc de notas");
+    AppendMenu(hAyuda, MF_STRING, IDM_AYUDA_ACERCA, L"&Acerca de wnotepad lite");
 
     AppendMenu(hBarra, MF_POPUP, (UINT_PTR)hArchivo, L"&Archivo");
     AppendMenu(hBarra, MF_POPUP, (UINT_PTR)hEdicion, L"&Edición");

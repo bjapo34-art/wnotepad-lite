@@ -1,4 +1,4 @@
-# Estado de la sesión — Bloc de notas Win32
+# Estado de la sesión — wnotepad lite
 
 > Archivo de traspaso. Sirve para retomar el trabajo en una sesión nueva
 > sin tener que reconstruir todo el contexto desde cero.
@@ -126,7 +126,7 @@ shotdlg <bmp> / shotwin / shotall
 - `SendMessage` a la app **se cuelga** si la acción abre un diálogo modal:
   usar `PostMessage`.
 - La ventana "HotKey Listener" (#32770) del sistema puede confundirse con
-  el MessageBox de la app: filtrar por título ("Bloc de notas", "Fuente").
+  el MessageBox de la app: filtrar por título ("wnotepad lite", "Fuente").
 - El analizador de píxeles imprime los colores en **BGR**: p. ej. el punto
   naranja RGB(206,106,32) sale como `#206ACE`.
 - La app escribe **siempre** con BOM en UTF-8 y UTF-16LE: al guardar, los
@@ -141,9 +141,9 @@ shotdlg <bmp> / shotwin / shotall
 4. Botón "×" de la barra para cerrar todo de golpe.
 5. Recordar el tamaño/posición de la ventana entre ejecuciones.
 6. Guardar el estado de las pestañas (archivos abiertos) al salir.
-7. `docs/` con más documentación: `info.txt` está desactualizado (no
-   menciona `documentos.c`, `pestanas.c`, `codificacion.c`, `statusbar.c`,
-   `linenumbers.c`).
+7. Documentación: `README.md` ya recoge estructura, requisitos, compilación,
+   atajos y notas de implementación; `info.txt` se eliminó porque duplicaba
+   esa información.
 
 ## 8. Reglas del proyecto (para seguir respetándolas)
 

@@ -184,7 +184,7 @@ HWND CrearVentanaPrincipal(HINSTANCE hInst, int nCmdShow)
     if (!RegisterClassEx(&wc)) return NULL;
 
     HWND hwnd = CreateWindowEx(
-        0, wc.lpszClassName, L"Sin título - Bloc de notas",
+        0, wc.lpszClassName, L"Sin título - wnotepad lite",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 900, 650,
         NULL, ConstruirMenuPrincipal(), hInst, NULL);
