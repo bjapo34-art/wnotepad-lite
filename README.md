@@ -1,4 +1,6 @@
-# wnotepad lite 📝⚡
+# wnotepad lite v1.0 📝⚡
+
+**Versión actual:** v1.0
 
 **wnotepad lite** es un editor de texto minimalista y ultraligero (alrededor de 140 kB) desarrollado en **C puro utilizando WinAPI**, diseñado para ofrecer una experiencia completamente nativa, rápida y libre de dependencias pesadas, incorporando características avanzadas como sistema de pestañas y números de línea.
 

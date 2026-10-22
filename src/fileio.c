@@ -40,9 +40,9 @@ void PonerTitulo(HWND hwnd)
     const WCHAR* ruta = DocsRuta(DocsActivo());
 
     if (ruta && ruta[0])
-        wsprintf(titulo, L"%s - wnotepad lite", ruta);
+        wsprintf(titulo, L"%s - wnotepad lite " APP_VERSION, ruta);
     else
-        lstrcpy(titulo, L"Sin título - wnotepad lite");
+        lstrcpy(titulo, L"Sin título - wnotepad lite " APP_VERSION);
 
     SetWindowText(hwnd, titulo);
 }
@@ -491,7 +491,8 @@ void ManejarComando(HWND hwnd, WPARAM wParam, HINSTANCE hInst)
     /* --- Ayuda --- */
     case IDM_AYUDA_ACERCA:
         MessageBox(hwnd,
-                   L"wnotepad lite\nHecho con cl.exe y WinAPI pura\n\n"
+                   L"wnotepad lite " APP_VERSION
+                   L"\nHecho con cl.exe y WinAPI pura\n\n"
                    L"\u00A9 2026 jrgclzd",
                    L"Acerca de",
                    MB_OK | MB_ICONINFORMATION);

@@ -1,5 +1,5 @@
 #include <windows.h>
-#include "resources.h"
+#include "app.h"
 
 HMENU ConstruirMenuPrincipal(void)
 {
@@ -38,7 +38,8 @@ HMENU ConstruirMenuPrincipal(void)
     AppendMenu(hVer, MF_STRING | MF_CHECKED, IDM_VER_NUMEROS_LINEA, L"Números de &línea");
 
     HMENU hAyuda = CreatePopupMenu();
-    AppendMenu(hAyuda, MF_STRING, IDM_AYUDA_ACERCA, L"&Acerca de wnotepad lite");
+    AppendMenu(hAyuda, MF_STRING, IDM_AYUDA_ACERCA,
+               L"&Acerca de wnotepad lite " APP_VERSION);
 
     AppendMenu(hBarra, MF_POPUP, (UINT_PTR)hArchivo, L"&Archivo");
     AppendMenu(hBarra, MF_POPUP, (UINT_PTR)hEdicion, L"&Edición");

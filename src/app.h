@@ -3,6 +3,9 @@
 #include <windows.h>
 #include "resources.h"
 
+/* Versión de la aplicación (título de la ventana, menú Ayuda y "Acerca de") */
+#define APP_VERSION L"v1.0"
+
 /* codificacion.c */
 typedef enum {
     CODIF_ANSI = 0,   /* página de códigos del sistema (Windows-1252) */
